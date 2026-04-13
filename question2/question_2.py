@@ -1,155 +1,239 @@
 import os
 
-def tokenize(expression):
-    """
-    Manually converts the input string into a list of tokens.
-    Uses basic loops and branching to identify NUM, OP, and PAREN.
-    """
+# ---------------- TOKENIZER ---------------- #
+
+def tokenize(expr):
     tokens = []
     i = 0
-    expression = expression.strip()
-    
-    while i < len(expression):
-        char = expression[i]
-        
-        if char.isspace():
+
+    while i < len(expr):
+        ch = expr[i]
+
+        if ch.isspace():
             i += 1
             continue
-            
-        if char.isdigit() or char == '.':
-            num_str = ""
-            while i < len(expression) and (expression[i].isdigit() or expression[i] == '.'):
-                num_str += expression[i]
+
+        if ch.isdigit():
+            num = ch
+            i += 1
+            while i < len(expr) and (expr[i].isdigit() or expr[i] == '.'):
+                num += expr[i]
                 i += 1
-            tokens.append(('NUM', num_str))
+            tokens.append(("NUM", float(num)))
             continue
-            
-        if char in "+-*/":
-            tokens.append(('OP', char))
-        elif char == '(':
-            tokens.append(('LPAREN', '('))
-        elif char == ')':
-            tokens.append(('RPAREN', ')'))
-        else:
-            return None
-        i += 1
-        
-    tokens.append(('END', ''))
+
+        if ch in "+-*/":
+            tokens.append(("OP", ch))
+            i += 1
+            continue
+
+        if ch == "(":
+            tokens.append(("LPAREN", ch))
+            i += 1
+            continue
+
+        if ch == ")":
+            tokens.append(("RPAREN", ch))
+            i += 1
+            continue
+
+        # invalid character
+        return None
+
+    tokens.append(("END", None))
     return tokens
 
-def format_tokens(tokens):
-    if tokens is None: return "ERROR"
-    parts = []
-    for t_type, t_val in tokens:
-        if t_type == 'END':
-            parts.append("[END]")
-        else:
-            parts.append(f"[{t_type}:{t_val}]")
-    return " ".join(parts)
 
-# FIX 1: Use a variable 'input_path' here instead of a string literal
-def evaluate_file(input_path):
-    output_data = []
-    
-    def parse_expression(token_list, index):
-        idx, left_tree, left_val = parse_term(token_list, index)
-        while idx < len(token_list) and token_list[idx][0] == 'OP' and token_list[idx][1] in "+-":
-            op = token_list[idx][1]
-            idx, right_tree, right_val = parse_term(token_list, idx + 1)
-            left_tree = f"({op} {left_tree} {right_tree})"
-            if op == '+': left_val += right_val
-            else: left_val -= right_val
-        return idx, left_tree, left_val
+# ---------------- PARSER ---------------- #
 
-    def parse_term(token_list, index):
-        idx, left_tree, left_val = parse_factor(token_list, index)
-        while idx < len(token_list):
-            op = None
-            if token_list[idx][0] == 'OP' and token_list[idx][1] in "*/":
-                op = token_list[idx][1]
-                idx += 1
-            elif token_list[idx][0] in ['LPAREN', 'NUM']:
-                op = '*'
+def parse(tokens):
+    pos = 0
+
+    def peek():
+        return tokens[pos]
+
+    def consume():
+        nonlocal pos
+        t = tokens[pos]
+        pos += 1
+        return t
+
+    # factor -> NUM | (expr) | -factor
+    def parse_factor():
+        t = peek()
+
+        # unary minus
+        if t[0] == "OP" and t[1] == "-":
+            consume()
+            node = parse_factor()
+            return ("neg", node)
+
+        if t[0] == "NUM":
+            consume()
+            return ("num", t[1])
+
+        if t[0] == "LPAREN":
+            consume()
+            node = parse_expr()
+            if peek()[0] != "RPAREN":
+                raise Exception("Missing )")
+            consume()
+            return node
+
+        raise Exception("Invalid factor")
+
+    # term -> factor ((*|/) factor)*
+    def parse_term():
+        node = parse_factor()
+
+        while True:
+            t = peek()
+
+            # implicit multiplication
+            if t[0] in ("NUM", "LPAREN"):
+                right = parse_factor()
+                node = ("*", node, right)
+                continue
+
+            if t[0] == "OP" and t[1] in "*/":
+                op = consume()[1]
+                right = parse_factor()
+                node = (op, node, right)
             else:
                 break
-            idx, right_tree, right_val = parse_factor(token_list, idx)
-            left_tree = f"({op} {left_tree} {right_tree})"
-            if op == '*': 
-                left_val *= right_val
+
+        return node
+
+    # expr -> term ((+|-) term)*
+    def parse_expr():
+        node = parse_term()
+
+        while True:
+            t = peek()
+            if t[0] == "OP" and t[1] in "+-":
+                op = consume()[1]
+                right = parse_term()
+                node = (op, node, right)
             else:
-                if right_val == 0: raise ZeroDivisionError
-                left_val /= right_val
-        return idx, left_tree, left_val
+                break
 
-    def parse_factor(token_list, index):
-        if token_list[index][0] == 'OP':
-            if token_list[index][1] == '-':
-                idx, tree, val = parse_factor(token_list, index + 1)
-                return idx, f"(neg {tree})", -val
-            elif token_list[index][1] == '+':
-                raise ValueError("Unary + not supported")
-        return parse_primary(token_list, index)
+        return node
 
-    def parse_primary(token_list, index):
-        token_type, token_val = token_list[index]
-        if token_type == 'NUM':
-            v = float(token_val)
-            display_val = str(int(v)) if v.is_integer() else str(v)
-            return index + 1, display_val, v
-        if token_type == 'LPAREN':
-            idx, tree, val = parse_expression(token_list, index + 1)
-            if token_list[idx][0] != 'RPAREN':
-                raise Exception("Missing RPAREN")
-            return idx + 1, tree, val
-        raise Exception("Unexpected Token")
+    tree = parse_expr()
 
-    # FIX 2: Use the variable 'input_path' to open the file
-    try:
-        with open(input_path, 'r') as f:
-            lines = f.readlines()
-    except FileNotFoundError:
-        return []
+    if peek()[0] != "END":
+        raise Exception("Extra input")
 
-    # FIX 3: Correctly identify the directory to save output.txt 
-    output_dir = os.path.dirname(input_path)
-    output_file_path = os.path.join(output_dir, "output.txt") if output_dir else "output.txt"
-    
-    with open(output_file_path, 'w') as out_f:
+    return tree
+
+
+# ---------------- TREE FORMAT ---------------- #
+
+def format_tree(node):
+    if node[0] == "num":
+        val = node[1]
+        return str(int(val)) if val.is_integer() else str(round(val, 4))
+
+    if node[0] == "neg":
+        return f"(neg {format_tree(node[1])})"
+
+    op, left, right = node
+    return f"({op} {format_tree(left)} {format_tree(right)})"
+
+
+# ---------------- EVALUATION ---------------- #
+
+def evaluate(node):
+    if node[0] == "num":
+        return node[1]
+
+    if node[0] == "neg":
+        return -evaluate(node[1])
+
+    op, left, right = node
+    l = evaluate(left)
+    r = evaluate(right)
+
+    if op == "+":
+        return l + r
+    if op == "-":
+        return l - r
+    if op == "*":
+        return l * r
+    if op == "/":
+        if r == 0:
+            raise Exception("Divide by zero")
+        return l / r
+
+
+# ---------------- TOKEN STRING FORMAT ---------------- #
+
+def tokens_to_string(tokens):
+    parts = []
+    for t in tokens:
+        if t[0] == "NUM":
+            val = int(t[1]) if t[1].is_integer() else t[1]
+            parts.append(f"[NUM:{val}]")
+        elif t[0] == "OP":
+            parts.append(f"[OP:{t[1]}]")
+        elif t[0] == "LPAREN":
+            parts.append("[LPAREN:(]")
+        elif t[0] == "RPAREN":
+            parts.append("[RPAREN:)]")
+        elif t[0] == "END":
+            parts.append("[END]")
+    return " ".join(parts)
+
+
+# ---------------- MAIN FUNCTION ---------------- #
+
+def evaluate_file(input_path: str):
+    results = []
+
+    output_path = os.path.join(os.path.dirname(input_path), "output.txt")
+
+    with open(input_path, "r") as f:
+        lines = f.readlines()
+
+    with open(output_path, "w") as out:
         for line in lines:
-            raw_input = line.strip()
-            if not raw_input: continue
-            
-            tokens = tokenize(raw_input)
-            entry = {"input": raw_input, "tree": "ERROR", "tokens": format_tokens(tokens), "result": "ERROR"}
-            
-            if tokens:
-                try:
-                    _, res_tree, res_val = parse_expression(tokens, 0)
-                    entry["tree"] = res_tree
-                    entry["result"] = res_val
-                except:
-                    pass 
+            expr = line.strip()
 
-            output_data.append(entry)
-            
-            out_f.write(f"Input: {entry['input']}\n")
-            out_f.write(f"Tree: {entry['tree']}\n")
-            out_f.write(f"Tokens: {entry['tokens']}\n")
-            
-            res_str = entry["result"]
-            if isinstance(res_str, float):
-                if res_str.is_integer():
-                    res_str = str(int(res_str))
+            if not expr:
+                continue
+
+            try:
+                tokens = tokenize(expr)
+                if tokens is None:
+                    raise Exception()
+
+                tree = parse(tokens)
+                value = evaluate(tree)
+
+                tree_str = format_tree(tree)
+                token_str = tokens_to_string(tokens)
+
+                if value == int(value):
+                    value = int(value)
                 else:
-                    res_str = f"{res_str:.4f}".rstrip('0').rstrip('.')
-            
-            out_f.write(f"Result: {res_str}\n\n")
+                    value = round(value, 4)
 
-    return output_data
+            except:
+                tree_str = "ERROR"
+                token_str = "ERROR"
+                value = "ERROR"
 
-# RUNNING THE CODE
-if __name__ == "__main__":
-    # Based on your file structure, 'input.txt' is in the same folder [cite: 3, 4]
-   results = evaluate_file("input.txt")
-   import os
-   print(f"Success! Output file is created at: {os.path.abspath('output.txt ')}")
+            # write to file
+            out.write(f"Input: {expr}\n")
+            out.write(f"Tree: {tree_str}\n")
+            out.write(f"Tokens: {token_str}\n")
+            out.write(f"Result: {value}\n\n")
+
+            results.append({
+                "input": expr,
+                "tree": tree_str,
+                "tokens": token_str,
+                "result": value
+            })
+
+    return results
