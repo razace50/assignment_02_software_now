@@ -1,6 +1,6 @@
 import os
 
-# ---------------- TOKENIZER ---------------- #
+# -------- TOKENIZER -------- #
 
 def tokenize(expr):
     tokens = []
@@ -37,14 +37,14 @@ def tokenize(expr):
             i += 1
             continue
 
-        # invalid character
+        # invalid character found
         return None
 
     tokens.append(("END", None))
     return tokens
 
 
-# ---------------- PARSER ---------------- #
+# -------- PARSER (Recursive Descent) -------- #
 
 def parse(tokens):
     pos = 0
@@ -58,7 +58,6 @@ def parse(tokens):
         pos += 1
         return t
 
-    # factor -> NUM | (expr) | -factor
     def parse_factor():
         t = peek()
 
@@ -76,20 +75,19 @@ def parse(tokens):
             consume()
             node = parse_expr()
             if peek()[0] != "RPAREN":
-                raise Exception("Missing )")
+                raise Exception("Missing closing bracket")
             consume()
             return node
 
-        raise Exception("Invalid factor")
+        raise Exception("Invalid expression")
 
-    # term -> factor ((*|/) factor)*
     def parse_term():
         node = parse_factor()
 
         while True:
             t = peek()
 
-            # implicit multiplication
+            # implicit multiplication (like 2(3+4))
             if t[0] in ("NUM", "LPAREN"):
                 right = parse_factor()
                 node = ("*", node, right)
@@ -104,7 +102,6 @@ def parse(tokens):
 
         return node
 
-    # expr -> term ((+|-) term)*
     def parse_expr():
         node = parse_term()
 
@@ -122,12 +119,12 @@ def parse(tokens):
     tree = parse_expr()
 
     if peek()[0] != "END":
-        raise Exception("Extra input")
+        raise Exception("Extra input at end")
 
     return tree
 
 
-# ---------------- TREE FORMAT ---------------- #
+# -------- TREE FORMAT -------- #
 
 def format_tree(node):
     if node[0] == "num":
@@ -141,7 +138,7 @@ def format_tree(node):
     return f"({op} {format_tree(left)} {format_tree(right)})"
 
 
-# ---------------- EVALUATION ---------------- #
+# -------- EVALUATION -------- #
 
 def evaluate(node):
     if node[0] == "num":
@@ -162,30 +159,36 @@ def evaluate(node):
         return l * r
     if op == "/":
         if r == 0:
-            raise Exception("Divide by zero")
+            raise Exception("Division by zero")
         return l / r
 
 
-# ---------------- TOKEN STRING FORMAT ---------------- #
+# -------- TOKEN STRING FORMAT -------- #
 
 def tokens_to_string(tokens):
     parts = []
+
     for t in tokens:
         if t[0] == "NUM":
             val = int(t[1]) if t[1].is_integer() else t[1]
             parts.append(f"[NUM:{val}]")
+
         elif t[0] == "OP":
             parts.append(f"[OP:{t[1]}]")
+
         elif t[0] == "LPAREN":
             parts.append("[LPAREN:(]")
+
         elif t[0] == "RPAREN":
             parts.append("[RPAREN:)]")
+
         elif t[0] == "END":
             parts.append("[END]")
+
     return " ".join(parts)
 
 
-# ---------------- MAIN FUNCTION ---------------- #
+# -------- MAIN FUNCTION -------- #
 
 def evaluate_file(input_path: str):
     results = []
@@ -223,7 +226,6 @@ def evaluate_file(input_path: str):
                 token_str = "ERROR"
                 value = "ERROR"
 
-            # write to file
             out.write(f"Input: {expr}\n")
             out.write(f"Tree: {tree_str}\n")
             out.write(f"Tokens: {token_str}\n")
@@ -237,3 +239,9 @@ def evaluate_file(input_path: str):
             })
 
     return results
+
+
+# -------- RUN PROGRAM -------- #
+
+if __name__ == "__main__":
+    evaluate_file("input.txt")
