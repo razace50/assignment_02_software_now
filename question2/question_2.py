@@ -13,15 +13,19 @@ def tokenize(expr):
             i += 1
             continue
 
-        if ch.isdigit():
-            num = ch
-            i += 1
-            while i < len(expr) and (expr[i].isdigit() or expr[i] == '.'):
-                num += expr[i]
-                i += 1
-            tokens.append(("NUM", float(num)))
-            continue
-
+       if ch.isdigit():
+    num = ch
+    dot_seen = False  
+    i += 1
+    while i < len(expr) and (expr[i].isdigit() or expr[i] == '.'):
+        if expr[i] == '.':
+            if dot_seen:   # ---- prevent multiple dots-----
+                return None
+            dot_seen = True
+        num += expr[i]
+        i += 1
+    tokens.append(("NUM", float(num)))
+    continue
         if ch in "+-*/":
             tokens.append(("OP", ch))
             i += 1
