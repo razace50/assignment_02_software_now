@@ -14,13 +14,18 @@ def tokenize(expr):
             continue
 
         if ch.isdigit():
-            num = ch
-            i += 1
-            while i < len(expr) and (expr[i].isdigit() or expr[i] == '.'):
+             num = ch
+             dot_seen = False
+             i += 1
+             while i < len(expr) and (expr[i].isdigit() or expr[i] == '.'):
+                if expr[i] == '.':
+                    if dot_seen:
+                        return None
+                    dot_seen = True
                 num += expr[i]
                 i += 1
-            tokens.append(("NUM", float(num)))
-            continue
+             tokens.append(("NUM", float(num)))
+             continue
 
         if ch in "+-*/":
             tokens.append(("OP", ch))
@@ -66,6 +71,11 @@ def parse(tokens):
             consume()
             node = parse_factor()
             return ("neg", node)
+
+            #---new unary plus support
+        if t[0] == "OP" and t[1] == "+":
+            consume()
+            return parse_factor()
 
         if t[0] == "NUM":
             consume()
