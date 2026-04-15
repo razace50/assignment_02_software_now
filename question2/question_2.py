@@ -73,9 +73,9 @@ def parse(tokens):
             return ("neg", node)
 
             #---new unary plus support
-            if t[0] == "OP" and t[1] == "+":
-             consume()
-        return parse_factor()
+        if t[0] == "OP" and t[1] == "+":
+            consume()
+            return parse_factor()
 
         if t[0] == "NUM":
             consume()
