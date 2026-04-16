@@ -1,7 +1,6 @@
-
 # ================= SHIFT FUNCTION =================
-def shift_char(ch, shift, direction, base):
-    return chr(((ord(ch) - ord(base) + direction * shift) % 26) + ord(base))
+def shift_char_half(ch, shift, direction, base, start, size):
+    return chr(((ord(ch) - ord(base) - start + direction * shift) % size) + ord(base) + start)
 
 
 # ================= ENCRYPTION =================
@@ -15,18 +14,18 @@ def encrypt_text(text, shift1, shift2):
             pos = ord(ch) - ord('a')
 
             if pos < 13:  # a–m
-                result += shift_char(ch, shift1 * shift2, +1, 'a')
+                result += shift_char_half(ch, shift1 * shift2, +1, 'a', 0, 13)
             else:         # n–z
-                result += shift_char(ch, shift1 + shift2, -1, 'a')
+                result += shift_char_half(ch, shift1 + shift2, -1, 'a', 13, 13)
 
         # -------- uppercase --------
         elif 'A' <= ch <= 'Z':
             pos = ord(ch) - ord('A')
 
             if pos < 13:  # A–M
-                result += shift_char(ch, shift1, -1, 'A')
+                result += shift_char_half(ch, shift1, -1, 'A', 0, 13)
             else:         # N–Z
-                result += shift_char(ch, shift2 ** 2, +1, 'A')
+                result += shift_char_half(ch, shift2 ** 2, +1, 'A', 13, 13)
 
         # -------- others --------
         else:
@@ -45,19 +44,19 @@ def decrypt_text(text, shift1, shift2):
         if 'a' <= ch <= 'z':
             pos = ord(ch) - ord('a')
 
-            if pos < 13:
-                result += shift_char(ch, shift1 * shift2, -1, 'a')
-            else:
-                result += shift_char(ch, shift1 + shift2, +1, 'a')
+            if pos < 13:  # a–m
+                result += shift_char_half(ch, shift1 * shift2, -1, 'a', 0, 13)
+            else:         # n–z
+                result += shift_char_half(ch, shift1 + shift2, +1, 'a', 13, 13)
 
         # -------- uppercase --------
         elif 'A' <= ch <= 'Z':
             pos = ord(ch) - ord('A')
 
-            if pos < 13:
-                result += shift_char(ch, shift1, +1, 'A')
-            else:
-                result += shift_char(ch, shift2 ** 2, -1, 'A')
+            if pos < 13:  # A–M
+                result += shift_char_half(ch, shift1, +1, 'A', 0, 13)
+            else:         # N–Z
+                result += shift_char_half(ch, shift2 ** 2, -1, 'A', 13, 13)
 
         # -------- others --------
         else:
@@ -103,6 +102,8 @@ def verify():
         print("Verification successful ✔")
     else:
         print("Verification failed ❌")
+        print("\nOriginal:\n", original)
+        print("\nDecrypted:\n", decrypted)
 
 
 # ================= MAIN =================
@@ -115,4 +116,6 @@ def main():
     verify()
 
 
-main()
+# ================= RUN =================
+if __name__ == "__main__":
+    main()
